@@ -1,0 +1,127 @@
+log_info "Installing curl ..."
+  sudo -E apt-get -y install curl
+
+log_info "Installing Redis ..."
+  cd /tmp && \
+    wget https://download.redis.io/redis-stable.tar.gz && \
+    tar -xzvf redis-stable.tar.gz && \
+    cd redis-stable && \
+    make && \
+    sudo -E make install
+  cd /tmp && \
+    rm redis-stable.tar.gz && \
+    rm -Rf redis-stable
+
+  sudo adduser --system --group --no-create-home redis
+  FILE="/etc/systemd/system/redis-server.service"
+  if [ ! -f "$FILE" ]; then
+    sudo bash -c "cat > $FILE" <<EOF
+[Unit]
+Description=redis in-memory data store
+After=network.target
+
+[Service]
+User=redis
+Group=redis
+ExecStart=/usr/local/bin/redis-server /etc/redis/redis.conf
+ExecStop=/usr/local/bin/redis-cli shutdown
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  fi
+
+  sudo mkdir -p /var/log/redis /var/lib/redis /etc/redis
+  sudo chown redis:redis /var/log/redis /var/lib/redis /etc/redis
+  sudo chmod 755 /var/log/redis /var/lib/redis /etc/redis
+
+  FILE="/etc/redis/redis.conf"
+
+  if [ ! -f "$FILE" ]; then
+    sudo bash -c "cat > $FILE" <<EOF
+bind 127.0.0.1
+protected-mode no
+port 6379
+dir /var/lib/redis
+dbfilename dump.rdb
+save 900 1
+save 300 10
+save 60 10000
+logfile /var/log/redis/redis-server.log
+loglevel debug
+EOF
+    sudo chown redis:redis "$FILE"
+    sudo chmod 644 "$FILE"
+  fi
+
+  sudo systemctl daemon-reload
+  sudo systemctl enable redis-server
+  sudo systemctl start redis-server
+  sudo systemctl --no-pager status redis-server
+  sudo redis-cli ping
+
+log_info "Installing ImageMagick ..."
+  sudo -E apt-get -y install libtool
+  wget https://raw.githubusercontent.com/discourse/discourse_docker/main/image/base/install-imagemagick
+  chmod +x install-imagemagick
+  sudo -E ./install-imagemagick
+
+log_info "Installing image utilities ..."
+  sudo -E apt-get -y install advancecomp gifsicle jpegoptim libjpeg-progs optipng pngcrush pngquant
+  sudo -E apt-get -y install jhead
+
+  # Install oxipng
+  cd /tmp && \
+    wget https://github.com/shssoichiro/oxipng/releases/download/v8.0.0/oxipng-8.0.0-x86_64-unknown-linux-musl.tar.gz && \
+    tar -xzvf oxipng-8.0.0-x86_64-unknown-linux-musl.tar.gz && \
+    sudo cp oxipng-8.0.0-x86_64-unknown-linux-musl/oxipng /usr/local/bin
+  cd /tmp && \
+    rm oxipng-8.0.0-x86_64-unknown-linux-musl.tar.gz && \
+    rm -Rf oxipng-8.0.0-x86_64-unknown-linux-musl
+
+if [[ ! -d "$HOME/.rbenv" ]]; then
+  log_info "Installing rbenv ..."
+    git clone https://github.com/rbenv/rbenv.git ~/.rbenv
+
+    if ! grep -qs "rbenv init" ~/.bashrc; then
+      printf 'export PATH="$HOME/.rbenv/bin:$PATH"\n' >> ~/.bashrc
+      printf 'eval "$(rbenv init - --no-rehash)"\n' >> ~/.bashrc
+    fi
+
+    export PATH="$HOME/.rbenv/bin:$PATH"
+    eval "$(rbenv init -)"
+fi
+
+if [[ ! -d "$HOME/.rbenv/plugins/ruby-build" ]]; then
+  log_info "Installing ruby-build, to install Rubies ..."
+    git clone https://github.com/rbenv/ruby-build.git ~/.rbenv/plugins/ruby-build
+fi
+
+ruby_version="3.2.1"
+
+log_info "Installing Ruby $ruby_version ..."
+  rbenv install "$ruby_version"
+
+log_info "Setting $ruby_version as global default Ruby ..."
+  rbenv global $ruby_version
+  rbenv rehash
+
+log_info "Updating to latest Rubygems version ..."
+  gem update --system
+
+log_info "Installing Rails ..."
+  gem install rails
+
+log_info "Installing Bundler ..."
+  gem install bundler
+
+log_info "Installing MailHog ..."
+  sudo wget -qO /usr/bin/mailhog https://github.com/mailhog/MailHog/releases/download/v1.0.1/MailHog_linux_amd64
+  sudo chmod +x /usr/bin/mailhog
+
+log_info "Installing Node.js 18 ..."
+  curl -sL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+  sudo -E apt-get -y install nodejs
+  sudo npm install -g svgo
+  sudo npm install -g yarn

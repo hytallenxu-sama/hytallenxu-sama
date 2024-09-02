@@ -4,4 +4,4 @@
 - 📝 I am now a graduate of 2027 in ShenZhen College of International Education
 - 🌱 I’m currently learning Competitive Programming in C++
 - 💞️ I’m looking to collaborate on projects in C++/Python/Java
-- 📫 How to reach me **s23372.xu@stu.scie.com.cn**
+- 📫 How to reach me **s23372.xu@stu.scie.com.cn**, @allenxu09
